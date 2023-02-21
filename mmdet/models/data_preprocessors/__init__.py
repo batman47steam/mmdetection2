@@ -4,7 +4,10 @@ from .data_preprocessor import (BatchFixedSizePad, BatchResize,
                                 DetDataPreprocessor,
                                 MultiBranchDataPreprocessor)
 
+from .Custom_data_preprocessor import CostumImgDataPreprocessor, CostumDetDataPreprocessor
+
 __all__ = [
     'DetDataPreprocessor', 'BatchSyncRandomResize', 'BatchFixedSizePad',
-    'MultiBranchDataPreprocessor', 'BatchResize', 'BoxInstDataPreprocessor'
+    'MultiBranchDataPreprocessor', 'BatchResize', 'BoxInstDataPreprocessor',
+    'CostumImgDataPreprocessor', 'CostumDetDataPreprocessor'
 ]

@@ -186,7 +186,7 @@ class CenterNetHead(BaseDenseHead):
         loss_wh = self.loss_wh(
             wh_pred,
             wh_target,
-            wh_offset_target_weight,
+            wh_offset_target_weight,  # 通过这个权重只把gt对应的center处的值抠出来，进行回归
             avg_factor=avg_factor * 2)
         loss_offset = self.loss_offset(
             offset_pred,
@@ -253,15 +253,15 @@ class CenterNetHead(BaseDenseHead):
                 gen_gaussian_target(center_heatmap_target[batch_id, ind],
                                     [ctx_int, cty_int], radius)
 
-                wh_target[batch_id, 0, cty_int, ctx_int] = scale_box_w
+                wh_target[batch_id, 0, cty_int, ctx_int] = scale_box_w # wh_target就是直接在gtbox center的位置上给了对应的长和宽
                 wh_target[batch_id, 1, cty_int, ctx_int] = scale_box_h
 
                 offset_target[batch_id, 0, cty_int, ctx_int] = ctx - ctx_int
                 offset_target[batch_id, 1, cty_int, ctx_int] = cty - cty_int
 
-                wh_offset_target_weight[batch_id, :, cty_int, ctx_int] = 1
+                wh_offset_target_weight[batch_id, :, cty_int, ctx_int] = 1  # 其实是这个起作用，只有在center的地方weight才为1
 
-        avg_factor = max(1, center_heatmap_target.eq(1).sum())
+        avg_factor = max(1, center_heatmap_target.eq(1).sum()) # avg_factor就是所有正样本的数目
         target_result = dict(
             center_heatmap_target=center_heatmap_target,
             wh_target=wh_target,

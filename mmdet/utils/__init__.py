@@ -14,6 +14,8 @@ from .typing_utils import (ConfigType, InstanceList, MultiConfig,
                            OptConfigType, OptInstanceList, OptMultiConfig,
                            OptPixelList, PixelList, RangeType)
 
+from .misc import show_data_classes
+
 __all__ = [
     'collect_env', 'find_latest_checkpoint', 'update_data_root',
     'setup_multi_processes', 'get_caller_name', 'log_img_scale', 'compat_cfg',
@@ -21,5 +23,5 @@ __all__ = [
     'AvoidCUDAOOM', 'all_reduce_dict', 'allreduce_grads', 'reduce_mean',
     'sync_random_seed', 'ConfigType', 'InstanceList', 'MultiConfig',
     'OptConfigType', 'OptInstanceList', 'OptMultiConfig', 'OptPixelList',
-    'PixelList', 'RangeType', 'get_test_pipeline_cfg'
+    'PixelList', 'RangeType', 'get_test_pipeline_cfg', 'show_data_classes'
 ]

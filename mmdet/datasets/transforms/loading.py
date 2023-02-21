@@ -818,3 +818,4 @@ class LoadEmptyAnnotations(BaseTransform):
         repr_str += f'with_seg={self.with_seg}, '
         repr_str += f'seg_ignore_label={self.seg_ignore_label})'
         return repr_str
+

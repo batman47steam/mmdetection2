@@ -2,6 +2,7 @@
 import argparse
 import os.path as osp
 
+import numpy as np
 from mmengine.config import Config, DictAction
 from mmengine.utils import ProgressBar
 
@@ -55,6 +56,8 @@ def main():
     progress_bar = ProgressBar(len(dataset))
     for item in dataset:
         img = item['inputs'].permute(1, 2, 0).numpy()
+        background = item['backgrounds'].permute(1,2,0).numpy()
+        img = np.concatenate((img, background), axis=1)
         data_sample = item['data_samples'].numpy()
         gt_instances = data_sample.gt_instances
         img_path = osp.basename(item['data_samples'].img_path)

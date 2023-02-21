@@ -2,6 +2,7 @@
 import copy
 import inspect
 import math
+import os.path
 from typing import List, Optional, Sequence, Tuple, Union
 
 import cv2
@@ -21,6 +22,9 @@ from mmdet.registry import TRANSFORMS
 from mmdet.structures.bbox import HorizontalBoxes, autocast_box_type
 from mmdet.structures.mask import BitmapMasks, PolygonMasks
 from mmdet.utils import log_img_scale
+
+from mmcv.transforms import LoadImageFromFile
+import mmengine.fileio as fileio
 
 try:
     from imagecorruptions import corrupt
@@ -167,6 +171,79 @@ class Resize(MMCV_Resize):
         repr_str += f'backend={self.backend}), '
         repr_str += f'interpolation={self.interpolation})'
         return repr_str
+
+@TRANSFORMS.register_module()
+class MultiResize(Resize):
+
+    def _resize_img(self, results: dict) -> None:
+        """Resize images with ``results['scale']``."""
+
+        if results.get('img', None) is not None:
+            if self.keep_ratio:
+                img, scale_factor = mmcv.imrescale(
+                    results['img'],
+                    results['scale'],
+                    interpolation=self.interpolation,
+                    return_scale=True,
+                    backend=self.backend)
+
+                background, scale_factor = mmcv.imrescale(
+                    results['background'],
+                    results['scale'],
+                    interpolation=self.interpolation,
+                    return_scale=True,
+                    backend=self.backend)
+                # the w_scale and h_scale has minor difference
+                # a real fix should be done in the mmcv.imrescale in the future
+                new_h, new_w = img.shape[:2]
+                h, w = results['img'].shape[:2]
+                w_scale = new_w / w
+                h_scale = new_h / h
+            else:
+                img, w_scale, h_scale = mmcv.imresize(
+                    results['img'],
+                    results['scale'],
+                    interpolation=self.interpolation,
+                    return_scale=True,
+                    backend=self.backend)
+
+                background, w_scale, h_scale = mmcv.imresize(
+                    results['background'],
+                    results['scale'],
+                    interpolation=self.interpolation,
+                    return_scale=True,
+                    backend=self.backend)
+
+            results['img'] = img
+            results['background'] = background
+            results['img_shape'] = img.shape[:2]
+            results['scale_factor'] = (w_scale, h_scale)
+            results['keep_ratio'] = self.keep_ratio
+    @autocast_box_type()
+    def transform(self, results: dict) -> dict:
+        """Transform function to resize images, bounding boxes and semantic
+        segmentation map.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+        Returns:
+            dict: Resized results, 'img', 'gt_bboxes', 'gt_seg_map',
+            'scale', 'scale_factor', 'height', 'width', and 'keep_ratio' keys
+            are updated in result dict.
+        """
+        if self.scale:
+            results['scale'] = self.scale
+        else:
+            img_shape = results['img'].shape[:2]
+            results['scale'] = _scale_size(img_shape[::-1], self.scale_factor)
+        self._resize_img(results)
+        self._resize_bboxes(results)
+        self._resize_masks(results)
+        self._resize_seg(results)
+        self._record_homography_matrix(results)
+        return results
+
+
 
 
 @TRANSFORMS.register_module()
@@ -409,6 +486,38 @@ class RandomFlip(MMCV_RandomFlip):
         # record homography matrix for flip
         self._record_homography_matrix(results)
 
+
+@TRANSFORMS.register_module()
+class MultiRandomFlip(RandomFlip):
+    @autocast_box_type()
+    def _flip(self, results: dict) -> None:
+        """Flip images, bounding boxes, and semantic segmentation map."""
+        # flip image
+        results['img'] = mmcv.imflip(
+            results['img'], direction=results['flip_direction'])
+
+        results['background'] = mmcv.imflip(
+            results['background'], direction=results['flip_direction']
+        )
+
+        img_shape = results['img'].shape[:2]
+
+        # flip bboxes
+        if results.get('gt_bboxes', None) is not None:
+            results['gt_bboxes'].flip_(img_shape, results['flip_direction'])
+
+        # flip masks
+        if results.get('gt_masks', None) is not None:
+            results['gt_masks'] = results['gt_masks'].flip(
+                results['flip_direction'])
+
+        # flip segs
+        if results.get('gt_seg_map', None) is not None:
+            results['gt_seg_map'] = mmcv.imflip(
+                results['gt_seg_map'], direction=results['flip_direction'])
+
+        # record homography matrix for flip
+        self._record_homography_matrix(results)
 
 @TRANSFORMS.register_module()
 class RandomShift(BaseTransform):
@@ -887,6 +996,55 @@ class SegRescale(BaseTransform):
         repr_str += f'backend={self.backend})'
         return repr_str
 
+@TRANSFORMS.register_module()
+class LoadMultiImageFromFile(LoadImageFromFile):
+
+    def transform(self, results: dict) -> Optional[dict]:
+        """Functions to load image.
+        Args:
+            results (dict): Result dict from
+                :class:`mmengine.dataset.BaseDataset`.
+        Returns:
+            dict: The dict contains loaded image and meta information.
+        """
+
+        filename = results['img_path']
+        img_name = os.path.basename(filename)
+        dir_name = os.path.dirname(filename).split('/')
+        dir_name[-2] = 'BackgroundSubtraction'
+        bg_filename = os.path.join(os.path.join(*dir_name), img_name)
+        results['bg_path'] = bg_filename
+        try:
+            if self.file_client_args is not None:
+                file_client = fileio.FileClient.infer_client(
+                    self.file_client_args, filename)
+                img_bytes = file_client.get(filename)
+                bg_bytes = file_client.get(bg_filename)
+            else:
+                img_bytes = fileio.get(
+                    filename, backend_args=self.backend_args)
+                bg_bytes = fileio.git(
+                    bg_filename, backend_args=self.backend_args
+                )
+            img = mmcv.imfrombytes(
+                img_bytes, flag=self.color_type, backend=self.imdecode_backend)
+            bg_img = mmcv.imfrombytes(
+                bg_bytes, flag=self.color_type, backend=self.imdecode_backend)
+
+        except Exception as e:
+            if self.ignore_empty:
+                return None
+            else:
+                raise e
+        if self.to_float32:
+            img = img.astype(np.float32)
+            bg_img = bg_img.astype(np.float32)
+
+        results['img'] = img
+        results['background'] = bg_img
+        results['img_shape'] = img.shape[:2]
+        results['ori_shape'] = img.shape[:2]
+        return results
 
 @TRANSFORMS.register_module()
 class PhotoMetricDistortion(BaseTransform):
@@ -1966,6 +2124,261 @@ class RandomCenterCropPad(BaseTransform):
         repr_str += f'test_pad_mode={self.test_pad_mode}, '
         repr_str += f'bbox_clip_border={self.bbox_clip_border})'
         return repr_str
+
+@TRANSFORMS.register_module()
+@avoid_cache_randomness
+class MultiRandomCenterCropPad(RandomCenterCropPad):
+    """Random center crop and random around padding for CornerNet.
+
+    This operation generates randomly cropped image from the original image and
+    pads it simultaneously. Different from :class:`RandomCrop`, the output
+    shape may not equal to ``crop_size`` strictly. We choose a random value
+    from ``ratios`` and the output shape could be larger or smaller than
+    ``crop_size``. The padding operation is also different from :class:`Pad`,
+    here we use around padding instead of right-bottom padding.
+
+    The relation between output image (padding image) and original image:
+
+    .. code:: text
+
+                        output image
+
+               +----------------------------+
+               |          padded area       |
+        +------|----------------------------|----------+
+        |      |         cropped area       |          |
+        |      |         +---------------+  |          |
+        |      |         |    .   center |  |          | original image
+        |      |         |        range  |  |          |
+        |      |         +---------------+  |          |
+        +------|----------------------------|----------+
+               |          padded area       |
+               +----------------------------+
+
+    There are 5 main areas in the figure:
+
+    - output image: output image of this operation, also called padding
+      image in following instruction.
+    - original image: input image of this operation.
+    - padded area: non-intersect area of output image and original image.
+    - cropped area: the overlap of output image and original image.
+    - center range: a smaller area where random center chosen from.
+      center range is computed by ``border`` and original image's shape
+      to avoid our random center is too close to original image's border.
+
+    Also this operation act differently in train and test mode, the summary
+    pipeline is listed below.
+
+    Train pipeline:
+
+    1. Choose a ``random_ratio`` from ``ratios``, the shape of padding image
+       will be ``random_ratio * crop_size``.
+    2. Choose a ``random_center`` in center range.
+    3. Generate padding image with center matches the ``random_center``.
+    4. Initialize the padding image with pixel value equals to ``mean``.
+    5. Copy the cropped area to padding image.
+    6. Refine annotations.
+
+    Test pipeline:
+
+    1. Compute output shape according to ``test_pad_mode``.
+    2. Generate padding image with center matches the original image
+       center.
+    3. Initialize the padding image with pixel value equals to ``mean``.
+    4. Copy the ``cropped area`` to padding image.
+
+    Required Keys:
+
+    - img (np.float32)
+    - img_shape (tuple)
+    - gt_bboxes (BaseBoxes[torch.float32]) (optional)
+    - gt_bboxes_labels (np.int64) (optional)
+    - gt_ignore_flags (bool) (optional)
+
+    Modified Keys:
+
+    - img (np.float32)
+    - img_shape (tuple)
+    - gt_bboxes (BaseBoxes[torch.float32]) (optional)
+    - gt_bboxes_labels (np.int64) (optional)
+    - gt_ignore_flags (bool) (optional)
+
+    Args:
+        crop_size (tuple, optional): expected size after crop, final size will
+            computed according to ratio. Requires  (width, height)
+            in train mode, and None in test mode.
+        ratios (tuple, optional): random select a ratio from tuple and crop
+            image to (crop_size[0] * ratio) * (crop_size[1] * ratio).
+            Only available in train mode. Defaults to (0.9, 1.0, 1.1).
+        border (int, optional): max distance from center select area to image
+            border. Only available in train mode. Defaults to 128.
+        mean (sequence, optional): Mean values of 3 channels.
+        std (sequence, optional): Std values of 3 channels.
+        to_rgb (bool, optional): Whether to convert the image from BGR to RGB.
+        test_mode (bool): whether involve random variables in transform.
+            In train mode, crop_size is fixed, center coords and ratio is
+            random selected from predefined lists. In test mode, crop_size
+            is image's original shape, center coords and ratio is fixed.
+            Defaults to False.
+        test_pad_mode (tuple, optional): padding method and padding shape
+            value, only available in test mode. Default is using
+            'logical_or' with 127 as padding shape value.
+
+            - 'logical_or': final_shape = input_shape | padding_shape_value
+            - 'size_divisor': final_shape = int(
+              ceil(input_shape / padding_shape_value) * padding_shape_value)
+
+            Defaults to ('logical_or', 127).
+        test_pad_add_pix (int): Extra padding pixel in test mode.
+            Defaults to 0.
+        bbox_clip_border (bool): Whether clip the objects outside
+            the border of the image. Defaults to True.
+    """
+
+    def _train_aug(self, results):
+        """Random crop and around padding the original image.
+
+        Args:
+            results (dict): Image infomations in the augment pipeline.
+
+        Returns:
+            results (dict): The updated dict.
+        """
+        img = results['img']
+        h, w, c = img.shape
+        background = results['background']
+        gt_bboxes = results['gt_bboxes']
+        while True:
+            scale = random.choice(self.ratios)
+            new_h = int(self.crop_size[1] * scale)
+            new_w = int(self.crop_size[0] * scale)
+            h_border = self._get_border(self.border, h)
+            w_border = self._get_border(self.border, w)
+
+            for i in range(50):
+                center_x = random.randint(low=w_border, high=w - w_border)
+                center_y = random.randint(low=h_border, high=h - h_border)
+
+                cropped_img, border, patch = self._crop_image_and_paste(
+                    img, [center_y, center_x], [new_h, new_w])
+
+                bg_cropped_img, border, patch = self._crop_image_and_paste(
+                    background, [center_y, center_x], [new_h, new_w])
+
+                if len(gt_bboxes) == 0:
+                    results['img'] = cropped_img
+                    results['background'] = bg_cropped_img
+                    results['img_shape'] = cropped_img.shape
+                    return results
+
+                # if image do not have valid bbox, any crop patch is valid.
+                mask = self._filter_boxes(patch, gt_bboxes)
+                if not mask.any():
+                    continue
+
+                results['img'] = cropped_img
+                results['background'] = bg_cropped_img
+                results['img_shape'] = cropped_img.shape
+
+                x0, y0, x1, y1 = patch
+
+                left_w, top_h = center_x - x0, center_y - y0
+                cropped_center_x, cropped_center_y = new_w // 2, new_h // 2
+
+                # crop bboxes accordingly and clip to the image boundary
+                gt_bboxes = gt_bboxes[mask]
+                gt_bboxes.translate_([
+                    cropped_center_x - left_w - x0,
+                    cropped_center_y - top_h - y0
+                ])
+                if self.bbox_clip_border:
+                    gt_bboxes.clip_([new_h, new_w])
+                keep = gt_bboxes.is_inside([new_h, new_w]).numpy()
+                gt_bboxes = gt_bboxes[keep]
+
+                results['gt_bboxes'] = gt_bboxes
+
+                # ignore_flags
+                if results.get('gt_ignore_flags', None) is not None:
+                    gt_ignore_flags = results['gt_ignore_flags'][mask]
+                    results['gt_ignore_flags'] = \
+                        gt_ignore_flags[keep]
+
+                # labels
+                if results.get('gt_bboxes_labels', None) is not None:
+                    gt_labels = results['gt_bboxes_labels'][mask]
+                    results['gt_bboxes_labels'] = gt_labels[keep]
+
+                if 'gt_masks' in results or 'gt_seg_map' in results:
+                    raise NotImplementedError(
+                        'RandomCenterCropPad only supports bbox.')
+
+                return results
+
+    def _test_aug(self, results):
+        """Around padding the original image without cropping.
+
+        The padding mode and value are from ``test_pad_mode``.
+
+        Args:
+            results (dict): Image infomations in the augment pipeline.
+
+        Returns:
+            results (dict): The updated dict.
+        """
+        img = results['img']
+        background = results['background']
+        h, w, c = img.shape
+        if self.test_pad_mode[0] in ['logical_or']:
+            # self.test_pad_add_pix is only used for centernet
+            target_h = (h | self.test_pad_mode[1]) + self.test_pad_add_pix
+            target_w = (w | self.test_pad_mode[1]) + self.test_pad_add_pix
+        elif self.test_pad_mode[0] in ['size_divisor']:
+            divisor = self.test_pad_mode[1]
+            target_h = int(np.ceil(h / divisor)) * divisor
+            target_w = int(np.ceil(w / divisor)) * divisor
+        else:
+            raise NotImplementedError(
+                'RandomCenterCropPad only support two testing pad mode:'
+                'logical-or and size_divisor.')
+
+        cropped_img, border, _ = self._crop_image_and_paste(
+            img, [h // 2, w // 2], [target_h, target_w])
+
+        bg_cropped_img, border, _ = self._crop_image_and_paste(
+            background, [h // 2, w // 2], [target_h, target_w])
+        results['img'] = cropped_img
+        results['background'] = bg_cropped_img
+        results['img_shape'] = cropped_img.shape
+        results['border'] = border
+        return results
+
+    @autocast_box_type()
+    def transform(self, results: dict) -> dict:
+        img = results['img']
+        assert img.dtype == np.float32, (
+            'RandomCenterCropPad needs the input image of dtype np.float32,'
+            ' please set "to_float32=True" in "LoadImageFromFile" pipeline')
+        h, w, c = img.shape
+        assert c == len(self.mean)
+        if self.test_mode:
+            return self._test_aug(results)
+        else:
+            return self._train_aug(results)
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(crop_size={self.crop_size}, '
+        repr_str += f'ratios={self.ratios}, '
+        repr_str += f'border={self.border}, '
+        repr_str += f'mean={self.input_mean}, '
+        repr_str += f'std={self.input_std}, '
+        repr_str += f'to_rgb={self.to_rgb}, '
+        repr_str += f'test_mode={self.test_mode}, '
+        repr_str += f'test_pad_mode={self.test_pad_mode}, '
+        repr_str += f'bbox_clip_border={self.bbox_clip_border})'
+        return repr_str
+
 
 
 @TRANSFORMS.register_module()
@@ -3635,3 +4048,108 @@ class CachedMixUp(BaseTransform):
         repr_str += f'random_pop={self.random_pop}, '
         repr_str += f'prob={self.prob})'
         return repr_str
+
+@TRANSFORMS.register_module()
+class MultiPhotoMetricDistortion(PhotoMetricDistortion):
+    """Apply photometric distortion to image sequentially, every transformation
+    is applied with a probability of 0.5. The position of random contrast is in
+    second or second to last.
+
+    1. random brightness
+    2. random contrast (mode 0)
+    3. convert color from BGR to HSV
+    4. random saturation
+    5. random hue
+    6. convert color from HSV to BGR
+    7. random contrast (mode 1)
+    8. randomly swap channels
+
+    Required Keys:
+
+    - img (np.uint8)
+
+    Modified Keys:
+
+    - img (np.float32)
+
+    Args:
+        brightness_delta (int): delta of brightness.
+        contrast_range (sequence): range of contrast.
+        saturation_range (sequence): range of saturation.
+        hue_delta (int): delta of hue.
+    """
+
+
+    def transform(self, results: dict) -> dict:
+        """Transform function to perform photometric distortion on images.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Result dict with images distorted.
+        """
+        assert 'img' in results, '`img` is not found in results'
+        img = results['img']
+        img = img.astype(np.float32)
+
+        background = results['background']
+        background = background.astype(np.float32)
+
+        (mode, brightness_flag, contrast_flag, saturation_flag, hue_flag,
+         swap_flag, delta_value, alpha_value, saturation_value, hue_value,
+         swap_value) = self._random_flags()
+
+        # random brightness
+        if brightness_flag:
+            img += delta_value
+            background += delta_value
+        # mode == 0 --> do random contrast first
+        # mode == 1 --> do random contrast last
+        if mode == 1:
+            if contrast_flag:
+                img *= alpha_value
+                background *= alpha_value
+
+        # convert color from BGR to HSV
+        img = mmcv.bgr2hsv(img)
+        background = mmcv.bgr2hsv(background)
+
+        # random saturation
+        if saturation_flag:
+            img[..., 1] *= saturation_value
+            background[...,1] *= saturation_value
+            # For image(type=float32), after convert bgr to hsv by opencv,
+            # valid saturation value range is [0, 1]
+            if saturation_value > 1:
+                img[..., 1] = img[..., 1].clip(0, 1)
+                background[..., 1] = img[..., 1].clip(0,1)
+
+        # random hue
+        if hue_flag:
+            img[..., 0] += hue_value
+            img[..., 0][img[..., 0] > 360] -= 360
+            img[..., 0][img[..., 0] < 0] += 360
+
+            background[..., 0] += hue_value
+            background[..., 0][background[..., 0] > 360] -= 360
+            background[..., 0][background[..., 0] < 0] += 360
+
+        # convert color from HSV to BGR
+        img = mmcv.hsv2bgr(img)
+        background = mmcv.hsv2bgr(background)
+
+        # random contrast
+        if mode == 0:
+            if contrast_flag:
+                img *= alpha_value
+                background *= alpha_value
+
+        # randomly swap channels
+        if swap_flag:
+            img = img[..., swap_value]
+            background = background[..., swap_value]
+
+        results['img'] = img
+        results['background'] = background
+        return results

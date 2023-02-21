@@ -33,6 +33,7 @@ class BaseDetDataset(BaseDataset):
         super().__init__(*args, **kwargs)
 
     def full_init(self) -> None:
+        print('base_det_dataset full_init')
         """Load annotation file and set ``BaseDataset._fully_initialized`` to
         True.
 
@@ -55,6 +56,7 @@ class BaseDetDataset(BaseDataset):
         if self._fully_initialized:
             return
         # load data information
+        print('do need full')
         self.data_list = self.load_data_list()
         # get proposals from file
         if self.proposal_file is not None:

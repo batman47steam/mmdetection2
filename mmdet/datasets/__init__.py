@@ -15,7 +15,8 @@ from .voc import VOCDataset
 from .wider_face import WIDERFaceDataset
 from .xml_style import XMLDataset
 
-from .coco_multi import MYCOCO
+
+from .custom import CustomDataset
 
 __all__ = [
     'XMLDataset', 'CocoDataset', 'DeepFashionDataset', 'VOCDataset',
@@ -23,5 +24,5 @@ __all__ = [
     'WIDERFaceDataset', 'get_loading_pipeline', 'CocoPanopticDataset',
     'MultiImageMixDataset', 'OpenImagesDataset', 'OpenImagesChallengeDataset',
     'AspectRatioBatchSampler', 'ClassAwareSampler', 'MultiSourceSampler',
-    'GroupMultiSourceSampler', 'BaseDetDataset', 'CrowdHumanDataset', 'MYCOCO',
+    'GroupMultiSourceSampler', 'BaseDetDataset', 'CrowdHumanDataset', 'CustomDataset',
 ]

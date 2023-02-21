@@ -165,6 +165,9 @@ def inference_detector(
         data_ = test_pipeline(data_)
 
         data_['inputs'] = [data_['inputs']]
+        # backgrounds
+        if('backgrounds' in data_.keys()):
+            data_['backgrounds'] = [data_['backgrounds']]
         data_['data_samples'] = [data_['data_samples']]
 
         # forward the model
