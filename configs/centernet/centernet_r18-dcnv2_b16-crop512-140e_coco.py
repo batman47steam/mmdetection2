@@ -158,4 +158,4 @@ auto_scale_lr = dict(base_batch_size=128)
 default_hooks = dict(logger=dict(type='LoggerHook', interval=100))
 
 
-
+visualizer = dict(vis_backends=[dict(type='LocalVisBackend'), dict(type='WandbVisBackend')])

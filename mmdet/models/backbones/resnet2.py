@@ -372,7 +372,7 @@ class ResNet2(BaseModule):
                  stem_channels=None,
                  base_channels=64,
                  num_stages=4,
-                 strides=(1, 2, 2, 2),
+                 strides=(1, 2, 2, 2), # 这里就已经控制了，第一个stage不会进行降采样
                  dilations=(1, 1, 1, 1),
                  out_indices=(0, 1, 2, 3),
                  style='pytorch',
@@ -427,7 +427,7 @@ class ResNet2(BaseModule):
 
         self.depth = depth
         if stem_channels is None:
-            stem_channels = base_channels
+            stem_channels = base_channels # base_channels 64
         self.stem_channels = stem_channels
         self.base_channels = base_channels
         self.num_stages = num_stages
