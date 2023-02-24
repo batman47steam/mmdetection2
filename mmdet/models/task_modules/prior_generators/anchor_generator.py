@@ -119,7 +119,7 @@ class AnchorGenerator:
         self.scale_major = scale_major
         self.centers = centers
         self.center_offset = center_offset
-        self.base_anchors = self.gen_base_anchors()
+        self.base_anchors = self.gen_base_anchors() # base_anchors是用gen_base_anchors生成的
         self.use_box_type = use_box_type
 
     @property
@@ -146,7 +146,7 @@ class AnchorGenerator:
                 feature levels.
         """
         multi_level_base_anchors = []
-        for i, base_size in enumerate(self.base_sizes):
+        for i, base_size in enumerate(self.base_sizes): # base_sizes如果是none，就用strides，下采样倍率
             center = None
             if self.centers is not None:
                 center = self.centers[i]
@@ -278,7 +278,7 @@ class AnchorGenerator:
             torch.Tensor: Anchors in the overall feature maps.
         """
 
-        base_anchors = self.base_anchors[level_idx].to(device).to(dtype)
+        base_anchors = self.base_anchors[level_idx].to(device).to(dtype) # 不用管，怎么和下采样的倍率有一定关系就行
         feat_h, feat_w = featmap_size
         stride_w, stride_h = self.strides[level_idx]
         # First create Range with the default dtype, than convert to
@@ -292,6 +292,7 @@ class AnchorGenerator:
         # add A anchors (1, A, 4) to K shifts (K, 1, 4) to get
         # shifted anchors (K, A, 4), reshape to (K*A, 4)
 
+        # anchor的中心位置，和这个featuremap下采样的倍率有一定的关系
         all_anchors = base_anchors[None, :, :] + shifts[:, None, :]
         all_anchors = all_anchors.view(-1, 4)
         # first A rows correspond to A anchors of (0, 0) in feature map,
@@ -434,7 +435,7 @@ class AnchorGenerator:
             anchor_stride = self.strides[i]
             feat_h, feat_w = featmap_sizes[i]
             h, w = pad_shape[:2]
-            valid_feat_h = min(int(np.ceil(h / anchor_stride[1])), feat_h)
+            valid_feat_h = min(int(np.ceil(h / anchor_stride[1])), feat_h) # 原始图像pad以后除以stride，和当前的featuremap的长宽最小值
             valid_feat_w = min(int(np.ceil(w / anchor_stride[0])), feat_w)
             flags = self.single_level_valid_flags((feat_h, feat_w),
                                                   (valid_feat_h, valid_feat_w),

@@ -214,14 +214,14 @@ class ATSSHead(AnchorHead):
 
         # classification loss
         loss_cls = self.loss_cls(
-            cls_score, labels, label_weights, avg_factor=avg_factor)
+            cls_score, labels, label_weights, avg_factor=avg_factor) # 这里面有个label_weights发挥权重的作用
 
-        # FG cat_id: [0, num_classes -1], BG cat_id: num_classes
+        # FG cat_id: [0, num_classes -1], BG cat_id: num_classes # 就是这里啊，80对应的其实就是background类别
         bg_class_ind = self.num_classes
         pos_inds = ((labels >= 0)
                     & (labels < bg_class_ind)).nonzero().squeeze(1)
 
-        if len(pos_inds) > 0:
+        if len(pos_inds) > 0: # 有正样本才需要计算center-loss 和 bbox回归的loss
             pos_bbox_targets = bbox_targets[pos_inds]
             pos_bbox_pred = bbox_pred[pos_inds]
             pos_anchors = anchors[pos_inds]
@@ -229,14 +229,14 @@ class ATSSHead(AnchorHead):
 
             centerness_targets = self.centerness_target(
                 pos_anchors, pos_bbox_targets)
-            pos_decode_bbox_pred = self.bbox_coder.decode(
+            pos_decode_bbox_pred = self.bbox_coder.decode( # 把网络预测的结果，还原回实际的bbox
                 pos_anchors, pos_bbox_pred)
 
             # regression loss
             loss_bbox = self.loss_bbox(
                 pos_decode_bbox_pred,
                 pos_bbox_targets,
-                weight=centerness_targets,
+                weight=centerness_targets, # 大致意思是越靠近目标的中心会分配越大的权重
                 avg_factor=1.0)
 
             # centerness loss
@@ -285,10 +285,10 @@ class ATSSHead(AnchorHead):
         assert len(featmap_sizes) == self.prior_generator.num_levels
 
         device = cls_scores[0].device
-        anchor_list, valid_flag_list = self.get_anchors(
+        anchor_list, valid_flag_list = self.get_anchors( # 所有featuremap的对应位置上都会去生成相应的1个正方形的anchor
             featmap_sizes, batch_img_metas, device=device)
 
-        cls_reg_targets = self.get_targets(
+        cls_reg_targets = self.get_targets( # 对于所有的anchors，给正样本的anchor对应上gtbbox进行回归，同时相应的类别的label，对于负样本就是只有类别的label
             anchor_list,
             valid_flag_list,
             batch_gt_instances,
@@ -323,7 +323,7 @@ class ATSSHead(AnchorHead):
     def centerness_target(self, anchors: Tensor, gts: Tensor) -> Tensor:
         """Calculate the centerness between anchors and gts.
 
-        Only calculate pos centerness targets, otherwise there may be nan.
+        Only calculate pos centerness targets, otherwise there may be nan. 同样是只有正样本有centerness target
 
         Args:
             anchors (Tensor): Anchors with shape (N, 4), "xyxy" format.
@@ -341,7 +341,7 @@ class ATSSHead(AnchorHead):
 
         left_right = torch.stack([l_, r_], dim=1)
         top_bottom = torch.stack([t_, b_], dim=1)
-        centerness = torch.sqrt(
+        centerness = torch.sqrt(  # centerness还是根据fcos里面的公式计算出来的
             (left_right.min(dim=-1)[0] / left_right.max(dim=-1)[0]) *
             (top_bottom.min(dim=-1)[0] / top_bottom.max(dim=-1)[0]))
         assert not torch.isnan(centerness).any()
@@ -370,7 +370,7 @@ class ATSSHead(AnchorHead):
         # concat all level anchors and flags to a single tensor
         for i in range(num_imgs):
             assert len(anchor_list[i]) == len(valid_flag_list[i])
-            anchor_list[i] = torch.cat(anchor_list[i])
+            anchor_list[i] = torch.cat(anchor_list[i]) # 把fpn不同level上对应的anchor给直接拼接起来
             valid_flag_list[i] = torch.cat(valid_flag_list[i])
 
         # compute targets for each image
@@ -415,7 +415,7 @@ class ATSSHead(AnchorHead):
                             unmap_outputs: bool = True) -> tuple:
         """Compute regression, classification targets for anchors in a single
         image.
-
+        这个挺重要的，会计算一个single image中，每个anchor的regression，classification的目标
         Args:
             flat_anchors (Tensor): Multi-level anchors of the image, which are
                 concatenated into a single tensor of shape (num_anchors ,4)
@@ -451,7 +451,7 @@ class ATSSHead(AnchorHead):
                     (num_neg,).
                 sampling_result (:obj:`SamplingResult`): Sampling results.
         """
-        inside_flags = anchor_inside_flags(flat_anchors, valid_flags,
+        inside_flags = anchor_inside_flags(flat_anchors, valid_flags, # 检查anchor是否在边界内
                                            img_meta['img_shape'][:2],
                                            self.train_cfg['allowed_border'])
         if not inside_flags.any():
@@ -462,13 +462,13 @@ class ATSSHead(AnchorHead):
         # assign gt and sample anchors
         anchors = flat_anchors[inside_flags, :]
 
-        num_level_anchors_inside = self.get_num_level_anchors_inside(
+        num_level_anchors_inside = self.get_num_level_anchors_inside( # 得到每个level中有效的anchor
             num_level_anchors, inside_flags)
-        pred_instances = InstanceData(priors=anchors)
+        pred_instances = InstanceData(priors=anchors) # 感觉和anchors没什么区别，只不过是多了一层的封装
         assign_result = self.assigner.assign(pred_instances,
                                              num_level_anchors_inside,
                                              gt_instances, gt_instances_ignore)
-
+        # 直接返回正负样本对应的indices
         sampling_result = self.sampler.sample(assign_result, pred_instances,
                                               gt_instances)
 
@@ -484,15 +484,15 @@ class ATSSHead(AnchorHead):
         neg_inds = sampling_result.neg_inds
         if len(pos_inds) > 0:
             if self.reg_decoded_bbox:
-                pos_bbox_targets = sampling_result.pos_gt_bboxes
+                pos_bbox_targets = sampling_result.pos_gt_bboxes # 获取正样本对应的gtbox
             else:
                 pos_bbox_targets = self.bbox_coder.encode(
                     sampling_result.pos_priors, sampling_result.pos_gt_bboxes)
 
-            bbox_targets[pos_inds, :] = pos_bbox_targets
-            bbox_weights[pos_inds, :] = 1.0
+            bbox_targets[pos_inds, :] = pos_bbox_targets # 明确正样本索引处需要进行回归的目标
+            bbox_weights[pos_inds, :] = 1.0 # 正样本位置处的weights为1，也就是只有正样本才需要回归成gt
 
-            labels[pos_inds] = sampling_result.pos_gt_labels
+            labels[pos_inds] = sampling_result.pos_gt_labels # 应该是正样本处需要回归的类别，80这个label对应应该是背景
             if self.train_cfg['pos_weight'] <= 0:
                 label_weights[pos_inds] = 1.0
             else:
@@ -500,8 +500,8 @@ class ATSSHead(AnchorHead):
         if len(neg_inds) > 0:
             label_weights[neg_inds] = 1.0
 
-        # map up to original set of anchors
-        if unmap_outputs:
+        # map up to original set of anchors # 经过前面的操作，得到了正样本负样本对应的label，以及正样本需要回归的目标
+        if unmap_outputs: # 比如现在labels是18134（有效的anchors) 总的anchors是22400，就是还原回22400
             num_total_anchors = flat_anchors.size(0)
             anchors = unmap(anchors, num_total_anchors, inside_flags)
             labels = unmap(

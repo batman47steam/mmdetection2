@@ -118,12 +118,12 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         metainfo=metainfo,
-        ann_file='val.json',
+        ann_file='test.json',
         data_prefix=dict(img=''),
     pipeline=test_pipeline))
 test_dataloader = val_dataloader
 
-val_evaluator = dict(ann_file=data_root+'val.json')
+val_evaluator = dict(ann_file=data_root+'test.json')
 test_evaluator = val_evaluator
 # optimizer
 # Based on the default settings of modern detectors, the SGD effect is better

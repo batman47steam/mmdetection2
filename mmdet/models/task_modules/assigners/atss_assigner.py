@@ -230,7 +230,7 @@ class ATSSAssigner(BaseAssigner):
         b_ = gt_bboxes[:, 3] - ep_priors_cy[candidate_idxs].view(-1, num_gt)
         is_in_gts = torch.stack([l_, t_, r_, b_], dim=1).min(dim=1)[0] > 0.01
 
-        is_pos = is_pos & is_in_gts
+        is_pos = is_pos & is_in_gts # 既要是pos的（mean和std) 符合阈值要求，又要是在gtbox框内部的
 
         # if an anchor box is assigned to multiple gts,
         # the one with the highest IoU will be selected.
@@ -250,5 +250,5 @@ class ATSSAssigner(BaseAssigner):
         if pos_inds.numel() > 0:
             assigned_labels[pos_inds] = gt_labels[assigned_gt_inds[pos_inds] -
                                                   1]
-        return AssignResult(
+        return AssignResult( # 这个只是以一种特定的格式去输出assign的结果
             num_gt, assigned_gt_inds, max_overlaps, labels=assigned_labels)

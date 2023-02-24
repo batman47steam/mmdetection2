@@ -96,14 +96,14 @@ class FPN(BaseModule):
         self.upsample_cfg = upsample_cfg.copy()
 
         if end_level == -1 or end_level == self.num_ins - 1:
-            self.backbone_end_level = self.num_ins
+            self.backbone_end_level = self.num_ins # end_lvl 默认-1，num_ins为4
             assert num_outs >= self.num_ins - start_level
         else:
             # if end_level is not the last level, no extra level is allowed
             self.backbone_end_level = end_level + 1
             assert end_level < self.num_ins
             assert num_outs == end_level - start_level + 1
-        self.start_level = start_level
+        self.start_level = start_level # start_lvl 通常为1
         self.end_level = end_level
         self.add_extra_convs = add_extra_convs
         assert isinstance(add_extra_convs, (str, bool))
@@ -117,7 +117,7 @@ class FPN(BaseModule):
         self.fpn_convs = nn.ModuleList()
 
         for i in range(self.start_level, self.backbone_end_level):
-            l_conv = ConvModule(
+            l_conv = ConvModule( # lateral ? 通过1x1的卷积来调整通道数
                 in_channels[i],
                 out_channels,
                 1,
@@ -125,7 +125,7 @@ class FPN(BaseModule):
                 norm_cfg=norm_cfg if not self.no_norm_on_lateral else None,
                 act_cfg=act_cfg,
                 inplace=False)
-            fpn_conv = ConvModule(
+            fpn_conv = ConvModule( # fpn_conv, 应该是在lateral的结果上再次进行3x3的卷积
                 out_channels,
                 out_channels,
                 3,
@@ -139,14 +139,14 @@ class FPN(BaseModule):
             self.fpn_convs.append(fpn_conv)
 
         # add extra conv layers (e.g., RetinaNet)
-        extra_levels = num_outs - self.backbone_end_level + self.start_level
+        extra_levels = num_outs - self.backbone_end_level + self.start_level # 5-4+1=2，可以理解成这样，backbone是提供了4个输出的，但是neck只用到后面3个，那肯定有两个是extra的
         if self.add_extra_convs and extra_levels >= 1:
             for i in range(extra_levels):
                 if i == 0 and self.add_extra_convs == 'on_input':
-                    in_channels = self.in_channels[self.backbone_end_level - 1]
+                    in_channels = self.in_channels[self.backbone_end_level - 1] # 这里in_channels就是原本inchannels里的最后一个，即在backbone上面的
                 else:
-                    in_channels = out_channels
-                extra_fpn_conv = ConvModule(
+                    in_channels = out_channels # outchannels都是256，这里就是在fpn的基础上了，和backbone没啥关系了
+                extra_fpn_conv = ConvModule( # 还是一个3x3的卷积，同时还涉及到一个通道的变换
                     in_channels,
                     out_channels,
                     3,
@@ -192,7 +192,7 @@ class FPN(BaseModule):
 
         # build outputs
         # part 1: from original levels
-        outs = [
+        outs = [ # 先用lateral进行1x1的卷积（通道变换）最后再接一个3x3的卷积作为fpn的输出
             self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)
         ]
         # part 2: add extra levels
@@ -201,15 +201,15 @@ class FPN(BaseModule):
             # (e.g., Faster R-CNN, Mask R-CNN)
             if not self.add_extra_convs:
                 for i in range(self.num_outs - used_backbone_levels):
-                    outs.append(F.max_pool2d(outs[-1], 1, stride=2))
+                    outs.append(F.max_pool2d(outs[-1], 1, stride=2)) # 直接对FPN输出的outs上进行maxpool
             # add conv layers on top of original feature maps (RetinaNet)
             else:
-                if self.add_extra_convs == 'on_input':
+                if self.add_extra_convs == 'on_input': # retinaNet是再backbone的基础上得到额外的输出
                     extra_source = inputs[self.backbone_end_level - 1]
                 elif self.add_extra_convs == 'on_lateral':
                     extra_source = laterals[-1]
                 elif self.add_extra_convs == 'on_output':
-                    extra_source = outs[-1]
+                    extra_source = outs[-1] # fcos那种是在fpn的基础上再套用3x3的卷积得到额外的输出
                 else:
                     raise NotImplementedError
                 outs.append(self.fpn_convs[used_backbone_levels](extra_source))

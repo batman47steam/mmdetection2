@@ -187,12 +187,12 @@ class AnchorHead(BaseDenseHead):
         # anchors for one time
         multi_level_anchors = self.prior_generator.grid_priors(
             featmap_sizes, device=device)
-        anchor_list = [multi_level_anchors for _ in range(num_imgs)]
+        anchor_list = [multi_level_anchors for _ in range(num_imgs)] # 这里是每个batch上对应的所有anchor
 
         # for each image, we compute valid flags of multi level anchors
         valid_flag_list = []
         for img_id, img_meta in enumerate(batch_img_metas):
-            multi_level_flags = self.prior_generator.valid_flags(
+            multi_level_flags = self.prior_generator.valid_flags( # 就是去除落在图像边界外的anchor吧
                 featmap_sizes, img_meta['pad_shape'], device)
             valid_flag_list.append(multi_level_flags)
 
