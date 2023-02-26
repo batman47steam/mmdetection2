@@ -201,3 +201,4 @@ def get_file_list(source_root: str) -> [list, dict]:
     source_type = dict(is_dir=is_dir, is_url=is_url, is_file=is_file)
 
     return source_file_path_list, source_type
+

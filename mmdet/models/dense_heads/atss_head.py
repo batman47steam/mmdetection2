@@ -378,7 +378,7 @@ class ATSSHead(AnchorHead):
             batch_gt_instances_ignore = [None] * num_imgs
         (all_anchors, all_labels, all_label_weights, all_bbox_targets,
          all_bbox_weights, pos_inds_list, neg_inds_list,
-         sampling_results_list) = multi_apply(
+         sampling_results_list) = multi_apply( # 这个multi_apply是针对batch而言的，而不是featuremap lvl！
              self._get_targets_single,
              anchor_list,
              valid_flag_list,
@@ -459,13 +459,13 @@ class ATSSHead(AnchorHead):
                 'There is no valid anchor inside the image boundary. Please '
                 'check the image size and anchor sizes, or set '
                 '``allowed_border`` to -1 to skip the condition.')
-        # assign gt and sample anchors
+        # assign gt and sample anchors，这里的anchors就已经是所有的8525了，也就是所有level上的anchor的总和了
         anchors = flat_anchors[inside_flags, :]
 
         num_level_anchors_inside = self.get_num_level_anchors_inside( # 得到每个level中有效的anchor
             num_level_anchors, inside_flags)
         pred_instances = InstanceData(priors=anchors) # 感觉和anchors没什么区别，只不过是多了一层的封装
-        assign_result = self.assigner.assign(pred_instances,
+        assign_result = self.assigner.assign(pred_instances, # 返回一张图片中正样本的分配情况
                                              num_level_anchors_inside,
                                              gt_instances, gt_instances_ignore)
         # 直接返回正负样本对应的indices

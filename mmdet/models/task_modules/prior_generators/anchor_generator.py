@@ -107,7 +107,7 @@ class AnchorGenerator:
         elif octave_base_scale is not None and scales_per_octave is not None:
             octave_scales = np.array(
                 [2**(i / scales_per_octave) for i in range(scales_per_octave)])
-            scales = octave_scales * octave_base_scale
+            scales = octave_scales * octave_base_scale # 指定octave_scales则从这里得到scales
             self.scales = torch.Tensor(scales)
         else:
             raise ValueError('Either scales or octave_base_scale with '
@@ -196,7 +196,7 @@ class AnchorGenerator:
 
         # use float anchor and the anchor's center is aligned with the
         # pixel center
-        base_anchors = [
+        base_anchors = [ # 上面的ws算出来是64，这样的话光base_anchor的大小都已经是64的了
             x_center - 0.5 * ws, y_center - 0.5 * hs, x_center + 0.5 * ws,
             y_center + 0.5 * hs
         ]
@@ -293,7 +293,7 @@ class AnchorGenerator:
         # shifted anchors (K, A, 4), reshape to (K*A, 4)
 
         # anchor的中心位置，和这个featuremap下采样的倍率有一定的关系
-        all_anchors = base_anchors[None, :, :] + shifts[:, None, :]
+        all_anchors = base_anchors[None, :, :] + shifts[:, None, :] # anchor的size是会受base_anchors的大小影响的
         all_anchors = all_anchors.view(-1, 4)
         # first A rows correspond to A anchors of (0, 0) in feature map,
         # then (0, 1), (0, 2), ...

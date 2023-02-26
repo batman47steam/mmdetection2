@@ -49,7 +49,7 @@ model = dict(
         anchor_generator=dict(
             type='AnchorGenerator',
             ratios=[1.0],
-            octave_base_scale=8,
+            octave_base_scale=5, # 这里关注下，超参数，应该是和生成的anchorbox的大小有关系的，会影响到正负样本分配
             scales_per_octave=1,
             strides=[8, 16, 32, 64, 128]),
         bbox_coder=dict(
@@ -92,23 +92,19 @@ test_pipeline = [
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='CostumPackDetInputs',
-        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape', 'sale_factor'))
+        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape', 'scale_factor'))
 ]
 
 train_dataloader = dict(
-    batch_size=16,
+    batch_size=4,
     dataset=dict(
-        _delete_=True,
-        type='RepeatDataset',
-        times=5,
-        dataset=dict(
-            type=dataset_type,
-            data_root=data_root,
-            metainfo=metainfo,
-            ann_file='train.json',
-            data_prefix=dict(img=''),
-            filter_cfg=dict(filter_empty_gt=True, mim_size=0),
-            pipeline=train_pipeline)))
+        type=dataset_type,
+        data_root=data_root,
+        metainfo=metainfo,
+        ann_file='train.json',
+        data_prefix=dict(img=''),
+        filter_cfg=dict(filter_empty_gt=True, mim_size=0),
+        pipeline=train_pipeline))
 
 val_dataloader = dict(
     dataset=dict(
