@@ -248,17 +248,17 @@ class TOODHead(ATSSHead):
                 zip(feats, self.scales, self.prior_generator.strides)):
             b, c, h, w = x.shape
             anchor = self.prior_generator.single_level_grid_priors(
-                (h, w), idx, device=x.device)
-            anchor = torch.cat([anchor for _ in range(b)])
+                (h, w), idx, device=x.device) # 在当前的featuremap每个位置上生成anchor
+            anchor = torch.cat([anchor for _ in range(b)]) # 一个batch的所有anchor
             # extract task interactive features
             inter_feats = []
-            for inter_conv in self.inter_convs:
+            for inter_conv in self.inter_convs: # 6个(conv + gn + relu)
                 x = inter_conv(x)
-                inter_feats.append(x)
-            feat = torch.cat(inter_feats, 1)
+                inter_feats.append(x) # 每次卷积的结果都加入到inter_feats这个list中
+            feat = torch.cat(inter_feats, 1) # list中的所有结果沿着通道维度进行拼接 6*256
 
-            # task decomposition
-            avg_feat = F.adaptive_avg_pool2d(feat, (1, 1))
+            # task decomposition, 理解为两个任务各自从feat中提取对自己有用的feat
+            avg_feat = F.adaptive_avg_pool2d(feat, (1, 1)) # 自适应池化，指定输出的大小为1x1
             cls_feat = self.cls_decomp(feat, avg_feat)
             reg_feat = self.reg_decomp(feat, avg_feat)
 
