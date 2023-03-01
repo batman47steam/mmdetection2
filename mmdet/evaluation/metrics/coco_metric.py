@@ -66,7 +66,7 @@ class CocoMetric(BaseMetric):
                  ann_file: Optional[str] = None,
                  metric: Union[str, List[str]] = 'bbox',
                  classwise: bool = False,
-                 proposal_nums: Sequence[int] = (100, 300, 1000),
+                 proposal_nums: Sequence[int] = (1, 10, 100), # (100,300,1000)
                  iou_thrs: Optional[Union[float, Sequence[float]]] = None,
                  metric_items: Optional[Sequence[str]] = None,
                  format_only: bool = False,
