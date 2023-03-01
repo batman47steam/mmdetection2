@@ -27,7 +27,7 @@ model = dict(
 train_pipeline = [
     dict(type='LoadMultiImageFromFile', file_client_args={{_base_.file_client_args}}),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='MultiResize', scale=(640,640), keep_ratio=True),
+    dict(type='MultiResize', scale=(608,608), keep_ratio=True),
     dict(type='MultiRandomFlip', prob=0.5),
     dict(type='CostumPackDetInputs')
 ]
@@ -40,10 +40,6 @@ test_pipeline = [
         type='CostumPackDetInputs',
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape', 'scale_factor'))
 ]
-
-# optimizer
-optim_wrapper = dict(
-    optimizer=dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001))
 
 train_dataloader = dict(
     batch_size=16,
@@ -94,4 +90,4 @@ auto_scale_lr = dict(base_batch_size=128)
 # 每间隔相应的step打印日志
 default_hooks = dict(logger=dict(type='LoggerHook', interval=100))
 
-visualizer = dict(vis_backends=[dict(type='LocalVisBackend'), dict(type='WandbVisBackend')])
+#visualizer = dict(vis_backends=[dict(type='LocalVisBackend'), dict(type='WandbVisBackend')])
