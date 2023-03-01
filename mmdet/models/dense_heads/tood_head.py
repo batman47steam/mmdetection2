@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn import ConvModule, Scale
+from mmcv.cnn import ConvModule, Scale # Scale是从mmcv中引入的
 from mmcv.ops import deform_conv2d
 from mmengine import MessageHub
 from mmengine.config import ConfigDict
@@ -250,26 +250,26 @@ class TOODHead(ATSSHead):
             anchor = self.prior_generator.single_level_grid_priors(
                 (h, w), idx, device=x.device) # 在当前的featuremap每个位置上生成anchor
             anchor = torch.cat([anchor for _ in range(b)]) # 一个batch的所有anchor
-            # extract task interactive features
+            # extract task interactive features 论文公式（1）=> X^inter
             inter_feats = []
-            for inter_conv in self.inter_convs: # 6个(conv + gn + relu)
+            for inter_conv in self.inter_convs: # 6个连续的(conv + gn + relu)
                 x = inter_conv(x)
                 inter_feats.append(x) # 每次卷积的结果都加入到inter_feats这个list中
             feat = torch.cat(inter_feats, 1) # list中的所有结果沿着通道维度进行拼接 6*256
 
             # task decomposition, 理解为两个任务各自从feat中提取对自己有用的feat
-            avg_feat = F.adaptive_avg_pool2d(feat, (1, 1)) # 自适应池化，指定输出的大小为1x1
-            cls_feat = self.cls_decomp(feat, avg_feat)
+            avg_feat = F.adaptive_avg_pool2d(feat, (1, 1))
+            cls_feat = self.cls_decomp(feat, avg_feat) # 实现layer attention操作，得到X^task
             reg_feat = self.reg_decomp(feat, avg_feat)
 
             # cls prediction and alignment
-            cls_logits = self.tood_cls(cls_feat)
-            cls_prob = self.cls_prob_module(feat)
-            cls_score = sigmoid_geometric_mean(cls_logits, cls_prob)
+            cls_logits = self.tood_cls(cls_feat) # 得到Z^task, 论文公式 （4）
+            cls_prob = self.cls_prob_module(feat) # 从X^inter去计算m，论文公式（7）
+            cls_score = sigmoid_geometric_mean(cls_logits, cls_prob) # 得到P^align, 论文公式 (5)
 
             # reg prediction and alignment
             if self.anchor_type == 'anchor_free':
-                reg_dist = scale(self.tood_reg(reg_feat).exp()).float()
+                reg_dist = scale(self.tood_reg(reg_feat).exp()).float() # 这里的scale是一个可学习的参数，在每个featurelvl帮助边界框回归的
                 reg_dist = reg_dist.permute(0, 2, 3, 1).reshape(-1, 4)
                 reg_bbox = distance2bbox(
                     self.anchor_center(anchor) / stride[0],
@@ -284,8 +284,8 @@ class TOODHead(ATSSHead):
                 raise NotImplementedError(
                     f'Unknown anchor type: {self.anchor_type}.'
                     f'Please use `anchor_free` or `anchor_based`.')
-            reg_offset = self.reg_offset_module(feat)
-            bbox_pred = self.deform_sampling(reg_bbox.contiguous(),
+            reg_offset = self.reg_offset_module(feat) # 计算O论文公式8
+            bbox_pred = self.deform_sampling(reg_bbox.contiguous(), # 可变性卷积根据offset对特征进行采样
                                              reg_offset.contiguous())
 
             # After deform_sampling, some boxes will become invalid (The

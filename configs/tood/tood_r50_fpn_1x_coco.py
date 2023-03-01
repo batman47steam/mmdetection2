@@ -82,3 +82,6 @@ optim_wrapper = dict(
     optimizer=dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001))
 
 train_dataloader = dict(dataset=dict(data_root=data_root))
+val_dataloader = dict(dataset=dict(data_root=data_root))
+test_dataloader = val_dataloader
+

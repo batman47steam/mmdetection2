@@ -89,7 +89,7 @@ def py_focal_loss_with_prob(pred,
         target = target[:, :num_classes]
 
     target = target.type_as(pred)
-    pt = (1 - pred) * target + pred * (1 - target)
+    pt = (1 - pred) * target + pred * (1 - target) # 预测结果正确的概率 ？
     focal_weight = (alpha * target + (1 - alpha) *
                     (1 - target)) * pt.pow(gamma)
     loss = F.binary_cross_entropy(
