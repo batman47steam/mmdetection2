@@ -17,7 +17,10 @@ from numpy import random
 from mmdet.registry import DATASETS, MODELS
 from mmdet.utils import register_all_modules
 from projects.assigner_visualization.dense_heads import ATSSHeadAssigner
+from projects.assigner_visualization.dense_heads import TOODHeadAssigner
 from projects.assigner_visualization.visualization import SingleStageAssignerVisualizer
+
+
 
 from mmyolo.datasets import yolov5_collate_back
 
@@ -91,7 +94,7 @@ def main():
         warnings.warn(
             'if you use dynamic_assignment methods such as YOLOv7 or '
             'YOLOv8 or RTMDet assigner, please load the checkpoint.')
-    assert isinstance(model.bbox_head, (ATSSHeadAssigner)), \
+    assert isinstance(model.bbox_head, (ATSSHeadAssigner, TOODHeadAssigner)), \
         'Now, this script only support YOLOv5, YOLOv7, YOLOv8 and RTMdet, ' \
         'and bbox_head must use ' \
         '`YOLOv5HeadAssigner or YOLOv7HeadAssigne or YOLOv8HeadAssigner ' \

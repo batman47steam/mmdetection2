@@ -1,4 +1,4 @@
-_base_ = ['../../../configs/atss/atss_r18_fpn_1xb1_cdnet.py']
+_base_ = ['../../../work_dirs/atss_r18_fpn_1xb1_cdnet/atss_r18_fpn_1xb1_cdnet.py']
 
 custom_imports = dict(imports=[
     'projects.assigner_visualization.detectors',
