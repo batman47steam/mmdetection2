@@ -367,7 +367,7 @@ class AnchorHead(BaseDenseHead):
         # anchor number of multi levels
         num_level_anchors = [anchors.size(0) for anchors in anchor_list[0]]
         # concat all level anchors to a single tensor
-        concat_anchor_list = []
+        concat_anchor_list = [] # concat_anchor_list 会对应所有level上的总anchor
         concat_valid_flag_list = []
         for i in range(num_imgs):
             assert len(anchor_list[i]) == len(valid_flag_list[i])
@@ -500,7 +500,7 @@ class AnchorHead(BaseDenseHead):
         anchor_list, valid_flag_list = self.get_anchors(
             featmap_sizes, batch_img_metas, device=device)
         cls_reg_targets = self.get_targets(
-            anchor_list,
+            anchor_list, # anchor list => 76 x 76 = 5776 x 9 = 51984 featuremap的size是5776，每个位置生成9个anchor
             valid_flag_list,
             batch_gt_instances,
             batch_img_metas,

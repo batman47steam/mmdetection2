@@ -135,7 +135,7 @@ class ATSSAssigner(BaseAssigner):
         # compute iou between all bbox and gt
         if self.alpha is None:
             # ATSSAssigner
-            overlaps = self.iou_calculator(priors, gt_bboxes)
+            overlaps = self.iou_calculator(priors, gt_bboxes) # 算的和priors的iou，也就是先验框的IoU
             if ('scores' in pred_instances or 'bboxes' in pred_instances):
                 warnings.warn(message)
 

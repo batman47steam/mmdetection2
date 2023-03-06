@@ -137,7 +137,7 @@ class MaxIoUAssigner(BaseAssigner):
             if gt_bboxes_ignore is not None:
                 gt_bboxes_ignore = gt_bboxes_ignore.cpu()
 
-        overlaps = self.iou_calculator(gt_bboxes, priors)
+        overlaps = self.iou_calculator(gt_bboxes, priors) # gtbox和所有anchor间的IoU
 
         if (self.ignore_iof_thr > 0 and gt_bboxes_ignore is not None
                 and gt_bboxes_ignore.numel() > 0 and priors.numel() > 0):
@@ -195,15 +195,15 @@ class MaxIoUAssigner(BaseAssigner):
 
         # for each anchor, which gt best overlaps with it
         # for each anchor, the max iou of all gts
-        max_overlaps, argmax_overlaps = overlaps.max(dim=0)
-        # for each gt, which anchor best overlaps with it
+        max_overlaps, argmax_overlaps = overlaps.max(dim=0) # 对于每个anchor那个gtbox和他的IoU最大，还有最大的IoU的值
+        # for each gt, which anchor best overlaps with it 对于每个gt，哪个anchor和他之间有最大的overlap
         # for each gt, the max iou of all proposals
         gt_max_overlaps, gt_argmax_overlaps = overlaps.max(dim=1)
 
         # 2. assign negative: below
         # the negative inds are set to be 0
         if isinstance(self.neg_iou_thr, float):
-            assigned_gt_inds[(max_overlaps >= 0)
+            assigned_gt_inds[(max_overlaps >= 0) # max_overlpas是每个anchor和所有gt间的IoU
                              & (max_overlaps < self.neg_iou_thr)] = 0
         elif isinstance(self.neg_iou_thr, tuple):
             assert len(self.neg_iou_thr) == 2
@@ -223,8 +223,8 @@ class MaxIoUAssigner(BaseAssigner):
             # However, if GT bbox 2's gt_argmax_overlaps = A, bbox A's
             # assigned_gt_inds will be overwritten to be bbox 2.
             # This might be the reason that it is not used in ROI Heads.
-            for i in range(num_gts):
-                if gt_max_overlaps[i] >= self.min_pos_iou:
+            for i in range(num_gts): # 遍历每一个ground-truth
+                if gt_max_overlaps[i] >= self.min_pos_iou: # 找到和这个ground-truth IoU最大的anchor
                     if self.gt_max_assign_all:
                         max_iou_inds = overlaps[i, :] == gt_max_overlaps[i]
                         assigned_gt_inds[max_iou_inds] = i + 1
@@ -235,9 +235,9 @@ class MaxIoUAssigner(BaseAssigner):
         pos_inds = torch.nonzero(
             assigned_gt_inds > 0, as_tuple=False).squeeze()
         if pos_inds.numel() > 0:
-            assigned_labels[pos_inds] = gt_labels[assigned_gt_inds[pos_inds] -
+            assigned_labels[pos_inds] = gt_labels[assigned_gt_inds[pos_inds] - # 从这里看只要判断为正样本就会有一个label啊
                                                   1]
-
+        # 这样来看的话，一个像素位置的9个anchor，那每个anchor都可以有自己的类别目标和回归目标了
         return AssignResult(
             num_gts=num_gts,
             gt_inds=assigned_gt_inds,

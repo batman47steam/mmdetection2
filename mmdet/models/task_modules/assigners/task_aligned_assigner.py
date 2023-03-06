@@ -79,13 +79,13 @@ class TaskAlignedAssigner(BaseAssigner):
         decode_bboxes = pred_instances.bboxes
         pred_scores = pred_instances.scores
         gt_bboxes = gt_instances.bboxes
-        gt_labels = gt_instances.labels
+        gt_labels = gt_instances.labels # gtbox对应的类别
 
         priors = priors[:, :4]
         num_gt, num_bboxes = gt_bboxes.size(0), priors.size(0)
         # compute alignment metric between all bbox and gt
         overlaps = self.iou_calculator(decode_bboxes, gt_bboxes).detach()
-        bbox_scores = pred_scores[:, gt_labels].detach()
+        bbox_scores = pred_scores[:, gt_labels].detach() # 取出所有的anchor在这个类别上预测的预测结果
         # assign 0 by default
         assigned_gt_inds = priors.new_full((num_bboxes, ), 0, dtype=torch.long)
         assign_metrics = priors.new_zeros((num_bboxes, ))

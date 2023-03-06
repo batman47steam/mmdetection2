@@ -23,12 +23,12 @@ model = dict(
         bgr_to_rgb=True,
         pad_size_divisor=32),
     backbone=dict(
-        type='ResNet2',
-        depth=50,
+        type='ResNet2', # ResNet2 要设置depth=True的，要不然怎么可能区分出来 ？？？
         deep_stem=True,
+        depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
-        frozen_stages=1,
+        frozen_stages=-1,
         norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=True,
         style='pytorch',
@@ -39,7 +39,7 @@ model = dict(
         out_channels=256,
         start_level=1,
         add_extra_convs='on_output',
-        num_outs=5),
+        num_outs=3),
     bbox_head=dict(
         type='TOODHead',
         num_classes=num_classes,
@@ -50,9 +50,9 @@ model = dict(
         anchor_generator=dict(
             type='AnchorGenerator',
             ratios=[1.0],
-            octave_base_scale=8,
+            octave_base_scale=5, #8
             scales_per_octave=1,
-            strides=[8, 16, 32, 64, 128]),
+            strides=[8, 16, 32]),
         bbox_coder=dict(
             type='DeltaXYWHBBoxCoder',
             target_means=[.0, .0, .0, .0],
@@ -109,39 +109,36 @@ train_dataloader = dict(
     batch_size=8,
     num_workers=2,
     dataset=dict(
-        _delete_=True,
-        type='RepeatDataset',
-        times=1,
-        dataset=dict(
-            type=dataset_type,
-            data_root=data_root,
-            metainfo=metainfo,
-            ann_file='train.json',
-            data_prefix=dict(img=''),
-            filter_cfg=dict(filter_empty_gt=True, mim_size=0),
-            indices=5000,
-            pipeline=train_pipeline)))
+        type=dataset_type,
+        data_root=data_root,
+        metainfo=metainfo,
+        ann_file='train.json',
+        data_prefix=dict(img=''),
+        filter_cfg=dict(filter_empty_gt=True, mim_size=0),
+        pipeline=train_pipeline))
 
 val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
         metainfo=metainfo,
-        ann_file='val.json',
+        ann_file='test.json',
         data_prefix=dict(img=''),
     pipeline=test_pipeline))
 test_dataloader = val_dataloader  # 先这样，在test的时候还是要换成test.json
 
-val_evaluator = dict(ann_file=data_root+'val.json')
+val_evaluator = dict(ann_file=data_root+'test.json')
 test_evaluator = val_evaluator
 
 max_epochs = 24
 
 # optimizer
 optim_wrapper = dict(
-    optimizer=dict(type='SGD', lr=0.000125, momentum=0.9, weight_decay=0.0001))
+    optimizer=dict(type='SGD', lr=0.0001, momentum=0.9, weight_decay=0.0001))
 
 param_scheduler = [
+    dict(
+        type='LinearLR', start_factor=0.001, by_epoch=False, begin=0, end=1000),
     dict(
         type='MultiStepLR',
         begin=0,

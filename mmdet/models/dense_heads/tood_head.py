@@ -771,9 +771,9 @@ class TOODHead(ATSSHead):
             pos_bbox_targets = sampling_result.pos_gt_bboxes
             bbox_targets[pos_inds, :] = pos_bbox_targets
 
-            labels[pos_inds] = sampling_result.pos_gt_labels
+            labels[pos_inds] = sampling_result.pos_gt_labels # 在pos_inds处对应的label会换成真正的label
             if self.train_cfg['pos_weight'] <= 0:
-                label_weights[pos_inds] = 1.0
+                label_weights[pos_inds] = 1.0 # 根据train_cfg设置pos_inds处对应的weight
             else:
                 label_weights[pos_inds] = self.train_cfg['pos_weight']
         if len(neg_inds) > 0:
