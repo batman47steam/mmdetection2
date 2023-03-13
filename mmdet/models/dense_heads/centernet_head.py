@@ -183,11 +183,11 @@ class CenterNetHead(BaseDenseHead):
         # of loss_center_heatmap is always 1/2 of loss_wh and loss_offset.
         loss_center_heatmap = self.loss_center_heatmap(
             center_heatmap_pred, center_heatmap_target, avg_factor=avg_factor)
-        loss_wh = self.loss_wh(
+        loss_wh = self.loss_wh( # 就是只在gtbox的center位置处进行回归，其他位置处的weight都设置为0了
             wh_pred,
             wh_target,
             wh_offset_target_weight,  # 通过这个权重只把gt对应的center处的值抠出来，进行回归
-            avg_factor=avg_factor * 2)
+            avg_factor=avg_factor * 2) # avg_factor应该就是用来对loss的总和求一个平均的
         loss_offset = self.loss_offset(
             offset_pred,
             offset_target,
@@ -231,10 +231,10 @@ class CenterNetHead(BaseDenseHead):
             [bs, self.num_classes, feat_h, feat_w])
         wh_target = gt_bboxes[-1].new_zeros([bs, 2, feat_h, feat_w])
         offset_target = gt_bboxes[-1].new_zeros([bs, 2, feat_h, feat_w])
-        wh_offset_target_weight = gt_bboxes[-1].new_zeros(
+        wh_offset_target_weight = gt_bboxes[-1].new_zeros(  # 这个weights是wh和offset通用的
             [bs, 2, feat_h, feat_w])
 
-        for batch_id in range(bs):
+        for batch_id in range(bs):  # 遍历batch中的每一张图片
             gt_bbox = gt_bboxes[batch_id]
             gt_label = gt_labels[batch_id]
             center_x = (gt_bbox[:, [0]] + gt_bbox[:, [2]]) * width_ratio / 2
@@ -246,14 +246,14 @@ class CenterNetHead(BaseDenseHead):
                 ctx, cty = ct
                 scale_box_h = (gt_bbox[j][3] - gt_bbox[j][1]) * height_ratio
                 scale_box_w = (gt_bbox[j][2] - gt_bbox[j][0]) * width_ratio
-                radius = gaussian_radius([scale_box_h, scale_box_w],
+                radius = gaussian_radius([scale_box_h, scale_box_w],  # 根据bounding box的大小去确定高斯半径
                                          min_overlap=0.3)
                 radius = max(0, int(radius))
                 ind = gt_label[j]
                 gen_gaussian_target(center_heatmap_target[batch_id, ind],
                                     [ctx_int, cty_int], radius)
 
-                wh_target[batch_id, 0, cty_int, ctx_int] = scale_box_w # wh_target就是直接在gtbox center的位置上给了对应的长和宽
+                wh_target[batch_id, 0, cty_int, ctx_int] = scale_box_w  # wh_target就是直接在gtbox center的位置上给了对应的长和宽
                 wh_target[batch_id, 1, cty_int, ctx_int] = scale_box_h
 
                 offset_target[batch_id, 0, cty_int, ctx_int] = ctx - ctx_int
@@ -361,12 +361,12 @@ class CenterNetHead(BaseDenseHead):
             k=self.test_cfg.topk,
             kernel=self.test_cfg.local_maximum_kernel)
 
-        det_bboxes = batch_det_bboxes.view([-1, 5])
+        det_bboxes = batch_det_bboxes.view([-1, 5]) # (topk,5) => (4个坐标 + 置信度）
         det_labels = batch_labels.view(-1)
 
         batch_border = det_bboxes.new_tensor(img_meta['border'])[...,
                                                                  [2, 0, 2, 0]]
-        det_bboxes[..., :4] -= batch_border
+        det_bboxes[..., :4] -= batch_border # 应该是减去padding的结果，608 => 640, 左右padding 16
 
         if rescale and 'scale_factor' in img_meta:
             det_bboxes[..., :4] /= det_bboxes.new_tensor(
@@ -411,16 +411,16 @@ class CenterNetHead(BaseDenseHead):
         height, width = center_heatmap_pred.shape[2:]
         inp_h, inp_w = img_shape
 
-        center_heatmap_pred = get_local_maximum(
+        center_heatmap_pred = get_local_maximum( # 应该是用maxpool去得到局部的最大值
             center_heatmap_pred, kernel=kernel)
 
         *batch_dets, topk_ys, topk_xs = get_topk_from_heatmap(
             center_heatmap_pred, k=k)
-        batch_scores, batch_index, batch_topk_labels = batch_dets
+        batch_scores, batch_index, batch_topk_labels = batch_dets # *batch_dets分别对应scores,index, labels
 
-        wh = transpose_and_gather_feat(wh_pred, batch_index)
+        wh = transpose_and_gather_feat(wh_pred, batch_index)  # 用index从wh_pred中取出相应的值
         offset = transpose_and_gather_feat(offset_pred, batch_index)
-        topk_xs = topk_xs + offset[..., 0]
+        topk_xs = topk_xs + offset[..., 0] # 用offset进一步修正center的位置
         topk_ys = topk_ys + offset[..., 1]
         tl_x = (topk_xs - wh[..., 0] / 2) * (inp_w / width)
         tl_y = (topk_ys - wh[..., 1] / 2) * (inp_h / height)

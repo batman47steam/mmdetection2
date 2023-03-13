@@ -108,7 +108,7 @@ train_dataloader = dict(
             type=dataset_type,
             data_root=data_root,
             metainfo=metainfo,
-            ann_file='train.json',
+            ann_file='test.json',
             data_prefix=dict(img=''),
             filter_cfg=dict(filter_empty_gt=True, min_size=0),
             pipeline=train_pipeline)))
@@ -158,4 +158,4 @@ auto_scale_lr = dict(base_batch_size=128)
 default_hooks = dict(logger=dict(type='LoggerHook', interval=100))
 
 
-visualizer = dict(vis_backends=[dict(type='LocalVisBackend'), dict(type='WandbVisBackend')])
+#visualizer = dict(vis_backends=[dict(type='LocalVisBackend'), dict(type='WandbVisBackend')])

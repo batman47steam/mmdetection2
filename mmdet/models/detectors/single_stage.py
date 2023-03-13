@@ -109,7 +109,7 @@ class SingleStageDetector(BaseDetector):
         x = self.extract_feat(batch_inputs)
         results_list = self.bbox_head.predict(
             x, batch_data_samples, rescale=rescale)
-        batch_data_samples = self.add_pred_to_datasample(
+        batch_data_samples = self.add_pred_to_datasample(  # datasample是自行封装的一个类，吧resuls_list也加入到这个类中
             batch_data_samples, results_list)
         return batch_data_samples
 

@@ -1963,7 +1963,7 @@ class RandomCenterCropPad(BaseTransform):
                 left, right]
             patch (list[int]): The cropped area, [left, top, right, bottom].
         """
-        center_y, center_x = center
+        center_y, center_x = center # test的时候，这个center已经给定了是原始图像608的center
         target_h, target_w = size
         img_h, img_w, img_c = image.shape
 
@@ -2342,9 +2342,13 @@ class MultiRandomCenterCropPad(RandomCenterCropPad):
                 'RandomCenterCropPad only support two testing pad mode:'
                 'logical-or and size_divisor.')
 
-        cropped_img, border, _ = self._crop_image_and_paste(
+        cropped_img, border, _ = self._crop_image_and_paste( # 这里和在test的时候是不同的，因为已经指明了center就是[h//2,w//2]
             img, [h // 2, w // 2], [target_h, target_w])
 
+        # 可以用来看下输出
+        # cropped_img = np.uint8(cropped_img)
+        # cv2.imshow('cropped_img', cropped_img*255)
+        # cv2.waitKey()
         bg_cropped_img, border, _ = self._crop_image_and_paste(
             background, [h // 2, w // 2], [target_h, target_w])
         results['img'] = cropped_img
