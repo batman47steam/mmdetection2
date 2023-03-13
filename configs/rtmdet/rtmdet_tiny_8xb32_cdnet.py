@@ -17,7 +17,13 @@ channels = [128, 256, 512]
 
 model = dict(
     data_preprocessor=dict(
-        type='CostumDetDataPreprocessor'),
+        # 这里要注意下yolo的系列没有从bgr转换为rgb，这个的影响后面还要分析下
+        _delete_=True,
+        type='CostumDetDataPreprocessor',
+        mean=[123.675, 116.28, 103.53],
+        std=[58.395, 57.12, 57.375],
+        bgr_to_rgb=True,
+        pad_size_divisor=32),
     backbone=dict(
         _delete_=True,
         type='ResNet_Concate',
@@ -28,13 +34,14 @@ model = dict(
         norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=True,
         style='pytorch',
-        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet18')),
+        init_cfg=dict(type='Pretrained', checkpoint='./checkpoints/resnet18_two_input.pth')),
     neck=dict(in_channels=channels, out_channels=96, num_csp_blocks=1),
     bbox_head=dict(in_channels=96, feat_channels=96, exp_on_reg=False, num_classes=num_classes))
 
 train_pipeline = [
     dict(
         type='LoadMultiImageFromFile',
+        to_float32=True,
         file_client_args=file_client_args),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
@@ -58,24 +65,25 @@ test_pipeline = [
         to_float32=True,
         file_client_args=file_client_args),
     # don't need Resize
-    dict(
-        type='MultiRandomCenterCropPad',
-        ratios=None,
-        border=None,
-        mean=[0, 0, 0],
-        std=[1, 1, 1],
-        to_rgb=True,
-        test_mode=True,
-        test_pad_mode=['logical_or', 31],
-        test_pad_add_pix=1),
+    # dict(
+    #     type='MultiRandomCenterCropPad',
+    #     ratios=None,
+    #     border=None,
+    #     mean=[0, 0, 0],
+    #     std=[1, 1, 1],
+    #     to_rgb=True,
+    #     test_mode=True,
+    #     test_pad_mode=['logical_or', 31],
+    #     test_pad_add_pix=1),
+    dict(type='MultiResize', scale=(640, 640), keep_ratio=True),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='CostumPackDetInputs',
-        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape', 'border'))
+        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape', 'scale_factor'))
 ]
 
 train_dataloader = dict(
-    batch_size=32,
+    batch_size=8,
     num_workers=4,
     dataset=dict(
         _delete_=True,
@@ -86,6 +94,7 @@ train_dataloader = dict(
             data_root=data_root,
             metainfo=metainfo,
             ann_file='train.json',
+            indices=500,
             data_prefix=dict(img=''),
             filter_cfg=dict(filter_empty_gt=True, min_size=0),
             pipeline=train_pipeline)))
@@ -97,12 +106,12 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         metainfo=metainfo,
-        ann_file='val.json',
+        ann_file='test.json',
         data_prefix=dict(img=''),
     pipeline=test_pipeline))
 test_dataloader = val_dataloader
 
-val_evaluator = dict(ann_file=data_root+'val.json', proposal_nums=(100, 1, 10))
+val_evaluator = dict(ann_file=data_root+'test.json', proposal_nums=(100, 1, 10))
 test_evaluator = val_evaluator
 
 max_epochs = 24
