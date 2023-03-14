@@ -106,12 +106,12 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         metainfo=metainfo,
-        ann_file='test.json',
+        ann_file='val.json',
         data_prefix=dict(img=''),
     pipeline=test_pipeline))
 test_dataloader = val_dataloader
 
-val_evaluator = dict(ann_file=data_root+'test.json', proposal_nums=(100, 1, 10))
+val_evaluator = dict(ann_file=data_root+'val.json', proposal_nums=(100, 1, 10))
 test_evaluator = val_evaluator
 
 max_epochs = 24
