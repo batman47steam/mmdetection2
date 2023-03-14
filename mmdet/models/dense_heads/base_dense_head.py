@@ -458,7 +458,7 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
         if rescale:
             assert img_meta.get('scale_factor') is not None
             scale_factor = [1 / s for s in img_meta['scale_factor']]
-            results.bboxes = scale_boxes(results.bboxes, scale_factor)
+            results.bboxes = scale_boxes(results.bboxes, scale_factor) # 把网络预测的bbox还原到原图的尺寸上
 
         if hasattr(results, 'score_factors'):
             # TODO： Add sqrt operation in order to be consistent with
