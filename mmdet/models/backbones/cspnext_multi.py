@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import torch
 import math
 from typing import Sequence, Tuple
 
@@ -101,7 +102,7 @@ class CSPNeXtMulti(BaseModule):
         conv = DepthwiseSeparableConvModule if use_depthwise else ConvModule
         self.stem = nn.Sequential(
             ConvModule(
-                3,
+                6, # change stem input channel from 3 to 6
                 int(arch_setting[0][0] * widen_factor // 2),
                 3,
                 padding=1,
@@ -184,6 +185,14 @@ class CSPNeXtMulti(BaseModule):
                     m.eval()
 
     def forward(self, x: Tuple[Tensor, ...]) -> Tuple[Tensor, ...]:
+
+        b, _, _, _ = x.shape
+        background = x[b//2:, ]
+        x = x[:b//2, ]
+
+        # concate input and background => [b, 6, h, w]
+        x = torch.concat((x, background), dim=1)
+
         outs = []
         for i, layer_name in enumerate(self.layers):
             layer = getattr(self, layer_name)
